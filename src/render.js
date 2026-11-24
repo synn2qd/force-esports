@@ -1,4 +1,5 @@
 // Public pages, rendered from the site content on every request.
+import { canSell, sizesOf, priceCents, countriesOf, currencyOf, money, MAX_QTY } from './shop.js';
 
 const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const handleOf = (url) => '@' + String(url || '').replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop();
@@ -139,10 +140,15 @@ ${footer(c)}
 const secHead = (kicker, title, action = '') =>
   `<div class="sec-head"><div>${kicker ? `<p class="kicker">${esc(kicker)}</p>` : ''}<h2>${esc(title)}</h2></div>${action}</div>`;
 
-function productCard(p) {
-  const media = p.img ? `<img class="product-photo" src="${esc(p.img)}" alt="${esc(p.name)}" loading="lazy">` : `<span class="product-mark" aria-hidden="true"><img src="/assets/img/logo.png" alt="" loading="lazy"></span>${ART[p.art] || ''}`;
-  const inner = `<div class="product-media${p.img ? ' has-photo' : ''}">${media}${p.status ? `<span class="chip">${esc(p.status)}</span>` : ''}</div>
-  <div class="product-meta"><div><h3>${esc(p.name)}</h3><p>${esc(p.price || p.status || '')}</p></div>${p.url ? `<span class="btn btn-ghost btn-sm"><span>Shop now</span><i class="btn-arrow">${ICON.up}</i></span>` : ''}</div>`;
+const productMedia = (p) => (p.img ? `<img class="product-photo" src="${esc(p.img)}" alt="${esc(p.name)}" loading="lazy">` : `<span class="product-mark" aria-hidden="true"><img src="/assets/img/logo.png" alt="" loading="lazy"></span>${ART[p.art] || ''}`);
+const priceText = (c, p) => (priceCents(p.price) ? money(priceCents(p.price), currencyOf(c.shop)) : p.price);
+
+// A product sold on the site opens its own page; one sold elsewhere opens that store; anything else is just shown.
+function productCard(c, p) {
+  const here = canSell(p, c.shopOn);
+  const inner = `<div class="product-media${p.img ? ' has-photo' : ''}">${productMedia(p)}${p.status ? `<span class="chip">${esc(p.status)}</span>` : ''}</div>
+  <div class="product-meta"><div><h3>${esc(p.name)}</h3><p>${esc(here ? priceText(c, p) : p.price || p.status || '')}</p></div>${here ? `<span class="btn btn-ghost btn-sm"><span>Buy now</span><i class="btn-arrow">${ICON.arrow}</i></span>` : p.url ? `<span class="btn btn-ghost btn-sm"><span>Shop now</span><i class="btn-arrow">${ICON.up}</i></span>` : ''}</div>`;
+  if (here) return `<a class="card product" href="/shop/${esc(p.id)}">${inner}</a>`;
   return p.url ? `<a class="card product" href="${esc(p.url)}" target="_blank" rel="noopener">${inner}</a>` : `<article class="card product">${inner}</article>`;
 }
 
@@ -262,7 +268,7 @@ ${
     ? `<section class="sec">
   <div class="wrap">
     ${secHead('Merch', 'From the shop', btn('All products', '/shop', { kind: 'ghost', size: 'sm' }))}
-    <div class="grid grid-2">${c.products.slice(0, 2).map(productCard).join('\n')}</div>
+    <div class="grid grid-2">${c.products.slice(0, 2).map((p) => productCard(c, p)).join('\n')}</div>
   </div>
 </section>`
     : ''
@@ -306,7 +312,7 @@ function shop(c) {
 <section class="sec">
   <div class="wrap">
     <div class="grid grid-3">
-      ${c.products.map(productCard).join('\n')}
+      ${c.products.map((p) => productCard(c, p)).join('\n')}
       <div class="card promo">
         <p class="kicker">Drop alerts</p>
         <h2>Be first when it lands</h2>
@@ -415,9 +421,56 @@ ${discordBand(c)}`,
   });
 }
 
+/* One product: its picture, price and, when it is sold on the site, the options and the buy button. */
+function product(c, p) {
+  const here = canSell(p, c.shopOn), sizes = sizesOf(p), ship = priceCents(c.shop.shipping), cur = currencyOf(c.shop);
+  const options = here
+    ? `<form class="buy" data-buy="${esc(p.id)}" novalidate>
+        ${sizes.length ? `<fieldset class="buy-field"><legend>Size</legend><div class="sizes">${sizes.map((s, i) => `<label><input type="radio" name="size" value="${esc(s)}" id="size-${i}"><span>${esc(s)}</span></label>`).join('')}</div></fieldset>` : ''}
+        ${p.custom ? `<label class="buy-field" for="buy-custom"><span>${esc(p.custom)} <em>optional</em></span><input type="text" id="buy-custom" name="custom" maxlength="40" autocomplete="off"></label>` : ''}
+        <label class="buy-field buy-qty" for="buy-qty"><span>Quantity</span><select id="buy-qty" name="qty">${Array.from({ length: MAX_QTY }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select></label>
+        <button class="btn btn-primary btn-block" type="submit"><span>Buy now</span><i class="btn-arrow">${ICON.arrow}</i></button>
+        <p class="buy-error" role="alert" hidden></p>
+        <p class="buy-note">Card payment is handled securely by Stripe. ${ship ? `Shipping is ${esc(money(ship, cur))} per order` : 'Shipping is free'}, to ${esc(countriesOf(c.shop).join(', '))}.${c.shop.note ? ` ${esc(c.shop.note)}` : ''}</p>
+      </form>`
+    : p.url
+      ? `<div class="btn-row">${btn('Shop now', p.url, { ext: true })}</div>`
+      : `<p class="pdp-soon">${esc(p.status || 'Not on sale yet')}</p>`;
+  return page(c, {
+    title: p.name,
+    description: p.details || `${p.name} from ${c.site.name}.`,
+    active: 'shop',
+    body: `<section class="sec pdp">
+  <div class="wrap pdp-in">
+    <div class="product-media pdp-media${p.img ? ' has-photo' : ''}">${productMedia(p)}${p.status ? `<span class="chip">${esc(p.status)}</span>` : ''}</div>
+    <div class="pdp-info">
+      <p class="kicker">Official merch</p>
+      <h1>${esc(p.name)}</h1>
+      ${p.price ? `<p class="pdp-price">${esc(priceText(c, p))}</p>` : ''}
+      ${p.details ? `<p class="pdp-text">${esc(p.details)}</p>` : ''}
+      ${options}
+      <p class="pdp-back"><a href="/shop">All products</a></p>
+    </div>
+  </div>
+</section>`,
+  });
+}
+
+function thanks(c) {
+  return page(c, {
+    title: 'Order received',
+    description: 'Thank you for your order.',
+    active: 'shop',
+    body: `<section class="sec notfound"><div class="wrap"><p class="kicker">Order received</p><h1>Thank you</h1><p class="lede">Your payment went through and your order is in. Keep an eye on the email you entered at checkout for updates.</p><div class="btn-row">${btn('Back to the shop', '/shop')}</div></div></section>`,
+  });
+}
+
 export function renderRoute(path, c) {
   if (path === '/') return home(c);
   if (path === '/shop') return shop(c);
+  if (path === '/shop/thanks') return thanks(c);
+  const item = /^\/shop\/([a-z0-9-]{1,60})$/.exec(path);
+  if (item) { const p = c.products.find((x) => x.id === item[1]); return p ? product(c, p) : null; }
   if (path === '/roster') return roster(c);
   if (path === '/accomplishments') return accomplishments(c);
   if (path === '/about') return about(c);

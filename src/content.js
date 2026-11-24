@@ -50,9 +50,10 @@ export const DEFAULT_CONTENT = {
     },
   ],
   products: [
-    { id: 'force-jersey', name: 'Force Jersey', status: 'Coming soon', price: '', url: '', art: 'jersey', img: '' },
-    { id: 'force-jacket', name: 'Force Jacket', status: 'Coming soon', price: '', url: '', art: 'jacket', img: '' },
+    { id: 'force-jersey', name: 'Force Jersey', status: 'Coming soon', price: '', url: '', art: 'jersey', img: '', sell: false, sizes: 'S, M, L, XL, 2XL', custom: '', details: '' },
+    { id: 'force-jacket', name: 'Force Jacket', status: 'Coming soon', price: '', url: '', art: 'jacket', img: '', sell: false, sizes: 'S, M, L, XL, 2XL', custom: '', details: '' },
   ],
+  shop: { currency: 'usd', shipping: '', countries: 'US', note: '' },
   accomplishments: [
     {
       id: 'solo-reload-finals',
@@ -186,7 +187,7 @@ export const SCHEMA = [
   {
     key: 'products',
     label: 'Merch',
-    help: 'Products on the Shop page. Leave the buy link empty while something is still coming soon.',
+    help: 'Products on the Shop page. Leave the buy link empty and selling switched off while something is still coming soon.',
     kind: 'list',
     itemName: 'product',
     titleKey: 'name',
@@ -196,9 +197,25 @@ export const SCHEMA = [
       { key: 'name', label: 'Name', type: 'text', max: 60, required: true },
       { key: 'status', label: 'Badge', type: 'text', max: 24, hint: 'For example "Coming soon", "New" or "Sold out". Leave empty for no badge.' },
       { key: 'price', label: 'Price', type: 'text', max: 20, placeholder: '$59.99' },
-      { key: 'url', label: 'Buy link', type: 'url', placeholder: 'https://…' },
+      { key: 'sell', label: 'Sell this on the site (card checkout)', type: 'bool', hint: 'Needs a price above, and Stripe connected (see Orders). When this is off, the buy link below is used instead.' },
+      { key: 'sizes', label: 'Sizes', type: 'text', max: 120, placeholder: 'S, M, L, XL, 2XL', hint: 'Separate with commas. Leave empty if there is only one size.' },
+      { key: 'custom', label: 'Ask for custom text', type: 'text', max: 40, placeholder: 'Name on the back', hint: 'Adds an optional box with this label to the product page. Leave empty to not ask.' },
+      { key: 'details', label: 'Description', type: 'textarea', max: 600, rows: 3, hint: 'Shown on the product page.' },
+      { key: 'url', label: 'Buy link', type: 'url', placeholder: 'https://…', hint: 'For selling through another store instead of on this site.' },
       { key: 'img', label: 'Product photo', type: 'image', hint: 'Without a photo, the outline drawing below is used.' },
       { key: 'art', label: 'Outline drawing', type: 'select', options: [{ value: 'jersey', label: 'Jersey' }, { value: 'jacket', label: 'Jacket' }, { value: 'none', label: 'Logo only' }] },
+    ],
+  },
+  {
+    key: 'shop',
+    label: 'Shop settings',
+    help: 'How orders placed on the site are charged and where they can be sent. Card payments are handled by Stripe.',
+    kind: 'object',
+    fields: [
+      { key: 'currency', label: 'Currency', type: 'select', options: [{ value: 'usd', label: 'US dollars (USD)' }, { value: 'eur', label: 'Euros (EUR)' }, { value: 'gbp', label: 'British pounds (GBP)' }, { value: 'cad', label: 'Canadian dollars (CAD)' }, { value: 'aud', label: 'Australian dollars (AUD)' }] },
+      { key: 'shipping', label: 'Shipping charge', type: 'text', max: 12, placeholder: '5.00', hint: 'One flat amount added to every order. Leave empty for free shipping.' },
+      { key: 'countries', label: 'Countries you ship to', type: 'text', max: 200, placeholder: 'US, CA', hint: 'Two-letter country codes separated by commas, for example US, CA, GB.' },
+      { key: 'note', label: 'Note under the buy button', type: 'textarea', max: 300, rows: 2, hint: 'For example "Made to order. Ships in 3 to 4 weeks."' },
     ],
   },
   {

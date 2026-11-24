@@ -164,7 +164,7 @@
 
   function startApp() {
     return api('GET', 'content').then(function (r) {
-      state.content = r.content; state.schema = r.schema; state.saved = JSON.stringify(r.content);
+      state.content = r.content; state.schema = r.schema; state.saved = JSON.stringify(r.content); state.shop = r.shop || null;
       renderShell();
       if (!state.wired) {
         state.wired = true;
@@ -185,6 +185,8 @@
     var side = h('aside', { class: 'side' },
       h('a', { class: 'side-brand', href: '#' + state.schema[0].key }, h('img', { src: '/assets/img/logo.png', alt: '' }), h('b', { text: 'FORCE' }), h('span', { text: 'Admin' })),
       h('p', { class: 'side-label', text: 'Content' }), sideNav,
+      state.user.role === 'owner' ? h('p', { class: 'side-label', text: 'Shop' }) : null,
+      state.user.role === 'owner' ? link('orders', 'Orders', 'products') : null,
       h('p', { class: 'side-label', text: 'Access' }),
       state.user.role === 'owner' ? link('accounts', 'Accounts', 'accounts') : null,
       link('password', 'My password', 'key'),
@@ -201,10 +203,11 @@
   function renderRoute() {
     if (!state.user) return;
     var key = location.hash.replace('#', '') || state.schema[0].key;
-    if (key === 'accounts' && state.user.role !== 'owner') key = state.schema[0].key;
+    if ((key === 'accounts' || key === 'orders') && state.user.role !== 'owner') key = state.schema[0].key;
     [].forEach.call(app.querySelectorAll('.nav-item'), function (a) { a.classList.toggle('on', a.getAttribute('data-key') === key); });
     clear(main);
     if (key === 'accounts') return viewAccounts();
+    if (key === 'orders') return viewOrders();
     if (key === 'password') return viewPassword();
     var def = sectionDef(key) || state.schema[0];
     viewSection(def);
@@ -489,6 +492,65 @@
       });
     }
     api('GET', 'users').then(function (r) { draw(r.users); }).catch(function (ex) { if (ex.status === 401) expired(); else toast(ex.message, 'bad'); });
+  }
+
+  /* ----------------------------------------------------------------- orders */
+  var PAY = { paid: 'Paid', awaiting_payment: 'Awaiting payment', payment_failed: 'Payment failed' };
+  var STAGES = [['new', 'New'], ['sent', 'Sent to supplier'], ['shipped', 'Shipped'], ['cancelled', 'Cancelled']];
+  function cash(cents, cur) { try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: String(cur || 'usd').toUpperCase() }).format(cents / 100); } catch (e) { return (cents / 100).toFixed(2); } }
+  // spreadsheet programs run cells that start with = + - @ as formulas, so those are written as plain text
+  function csvCell(v) { v = String(v === null || v === undefined ? '' : v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return '"' + v.replace(/"/g, '""') + '"'; }
+  function exportCsv(orders) {
+    var rows = [['Order', 'Date', 'Payment', 'Progress', 'Item', 'Size', 'Custom text', 'Quantity', 'Total', 'Currency', 'Name', 'Email', 'Phone', 'Ship to', 'Address 1', 'Address 2', 'City', 'State', 'Postcode', 'Country', 'Note']];
+    orders.forEach(function (o) { rows.push([o.number, o.created, PAY[o.status] || o.status, o.fulfilment, o.item.name, o.item.size, o.item.customText, o.item.quantity, (o.total / 100).toFixed(2), String(o.currency).toUpperCase(), o.customer.name, o.customer.email, o.customer.phone, o.shipTo.name, o.shipTo.line1, o.shipTo.line2, o.shipTo.city, o.shipTo.state, o.shipTo.postcode, o.shipTo.country, o.note]); });
+    var url = URL.createObjectURL(new Blob([rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n')], { type: 'text/csv' }));
+    var a = h('a', { href: url, download: 'force-orders-' + new Date().toISOString().slice(0, 10) + '.csv' }); document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+  function viewOrders() {
+    var setup = h('div', {}), box = h('div', { class: 'orders' });
+    var exportBtn = h('button', { class: 'btn btn-ghost', type: 'button', disabled: true, onclick: function () { exportCsv(state.orders || []); } }, h('span', { icon: 'copy' }), 'Export CSV');
+    head('Orders', 'Every order placed on the site, newest first. Only owners can see this page, because it holds customers\u2019 names and addresses.', exportBtn);
+    main.appendChild(setup); main.appendChild(box);
+    box.appendChild(h('p', { class: 'orders-empty', text: 'Loading\u2026' }));
+    api('GET', 'orders').then(function (r) { state.orders = r.orders; drawSetup(r.shop); draw(r.more); }).catch(function (ex) { clear(box).appendChild(h('div', { class: 'error', text: ex.message })); });
+
+    function drawSetup(s) {
+      clear(setup);
+      if (s.ready) { setup.appendChild(h('div', { class: 'card shop-state ' + (s.mode === 'live' ? 'is-live' : 'is-test') }, h('b', { text: s.mode === 'live' ? 'Stripe is connected and taking real payments.' : 'Stripe is connected in test mode. No real money moves until live keys are added.' }))); return; }
+      setup.appendChild(h('div', { class: 'card shop-state is-off' }, h('b', { text: 'The shop is not taking orders yet.' }),
+        h('p', { text: 'Two secrets have to be added in Cloudflare (Workers & Pages, force-esports, Settings, Variables and Secrets) before anything can be sold on the site:' }),
+        h('ul', {}, h('li', { text: 'STRIPE_SECRET_KEY: ' + (s.key ? 'added' : 'missing') }), h('li', { text: 'STRIPE_WEBHOOK_SECRET: ' + (s.webhook ? 'added' : 'missing') })),
+        h('p', { text: 'The README in the repository lists the steps. After that, switch on \u201cSell this on the site\u201d for a product under Merch.' })));
+    }
+    function draw(more) {
+      var orders = state.orders; clear(box); exportBtn.disabled = !orders.length;
+      if (!orders.length) { box.appendChild(h('p', { class: 'orders-empty', text: 'No orders yet. They appear here as soon as a payment goes through.' })); return; }
+      orders.forEach(function (o) {
+        var stage = h('select', { id: 'stage-' + o.number, onchange: function () { patch(o, { fulfilment: stage.value }, 'Progress updated.'); } }, STAGES.map(function (s) { return h('option', { value: s[0], text: s[1], selected: o.fulfilment === s[0] }); }));
+        var note = h('input', { type: 'text', id: 'note-' + o.number, maxlength: 300, value: o.note || '', placeholder: 'Tracking number, supplier reference\u2026', onchange: function () { patch(o, { note: note.value }, 'Note saved.'); } });
+        var a = o.shipTo, lines = [a.name, a.line1, a.line2, [a.city, a.state, a.postcode].filter(Boolean).join(', '), a.country].filter(Boolean);
+        box.appendChild(h('div', { class: 'card order' },
+          h('div', { class: 'order-top' },
+            h('div', { class: 'order-id' }, h('b', { text: '#' + o.number }), h('span', { text: new Date(o.created).toLocaleString() })),
+            h('span', { class: 'tag tag-' + o.status, text: PAY[o.status] || o.status }), o.live ? null : h('span', { class: 'tag tag-test', text: 'Test' }),
+            h('b', { class: 'order-total', text: cash(o.total, o.currency) })),
+          h('div', { class: 'order-body' },
+            h('div', {}, h('span', { class: 'label', text: 'Item' }), h('p', { text: o.item.quantity + ' \u00d7 ' + o.item.name + (o.item.size ? ' (' + o.item.size + ')' : '') }), o.item.customText ? h('p', { class: 'dim', text: o.item.customLabel + ': ' + o.item.customText }) : null),
+            h('div', {}, h('span', { class: 'label', text: 'Customer' }), h('p', { text: o.customer.name || 'No name given' }), h('p', { class: 'dim', text: [o.customer.email, o.customer.phone].filter(Boolean).join(' \u00b7 ') })),
+            h('div', {}, h('span', { class: 'label', text: 'Ship to' }), lines.map(function (l) { return h('p', { text: l }); }))),
+          h('div', { class: 'order-foot' }, field('Progress', stage), field('Note', note),
+            h('button', { class: 'iconbtn danger', type: 'button', title: 'Delete order', 'aria-label': 'Delete order ' + o.number, icon: 'trash', onclick: function () {
+              confirmBox('Delete this order?', 'Order #' + o.number + ' and the customer details stored with it are removed from the site for good. The payment itself stays in Stripe.', 'Delete order', true).then(function (ok) {
+                if (!ok) return;
+                api('DELETE', 'orders/' + encodeURIComponent(o.key)).then(function () { state.orders = state.orders.filter(function (x) { return x.key !== o.key; }); draw(more); toast('Order deleted.', 'ok'); }).catch(function (ex) { toast(ex.message, 'bad'); });
+              });
+            } }))));
+      });
+      if (more) box.appendChild(h('p', { class: 'orders-empty', text: 'Showing the newest 200 orders.' }));
+    }
+    function patch(o, body, done) {
+      api('PATCH', 'orders/' + encodeURIComponent(o.key), body).then(function (r) { Object.assign(o, r.order); toast(done, 'ok'); }).catch(function (ex) { toast(ex.message, 'bad'); });
+    }
   }
 
   function shareDetails(title, creds) {

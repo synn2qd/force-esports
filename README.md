@@ -43,6 +43,28 @@ Changes go live when you press **Save changes**. The public site can take up to 
 
 Storage is Cloudflare KV, which can take up to a minute to carry a change to every location. In practice that means a newly created or disabled account, or a save made by someone else, can take that long to be seen everywhere.
 
+## Selling on the site (Stripe)
+
+Products can be sold directly on the site. Stripe's hosted checkout page takes the payment, so card details never touch this site, and Stripe then sends the site a signed message that records the order under **Orders** in the admin panel. Until the two secrets below are added, nothing is for sale and the shop works as before (badges and outside buy links).
+
+1. **Create a Stripe account** at <https://dashboard.stripe.com/register> and, while setting up, work in a **sandbox** (Stripe's test environment) so no real money moves.
+2. **Create a restricted key.** In Stripe go to **Developers → API keys → Create restricted key**, give it *Write* access to **Checkout Sessions** only, and copy it (it starts with `rk_`).
+3. **Add the endpoint Stripe reports to.** In Stripe go to **Developers → Webhooks → Add destination**, enter `https://YOUR-SITE-ADDRESS/api/stripe/webhook`, and select these three events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`. Copy its **signing secret** (it starts with `whsec_`).
+4. **Add both to Cloudflare** under **Workers & Pages → force-esports → Settings → Variables and Secrets**, as type **Secret**:
+   - `STRIPE_SECRET_KEY`: the restricted key from step 2
+   - `STRIPE_WEBHOOK_SECRET`: the signing secret from step 3
+5. **Set up the shop in `/admin`.** Under **Shop settings** choose the currency, the shipping charge and the countries you ship to. Under **Merch**, give a product a price and sizes and switch on **Sell this on the site**.
+6. **Place a test order.** On the product page press **Buy now** and pay with Stripe's test card `4242 4242 4242 4242` (any future date, any CVC). The order should appear under **Orders** within a few seconds.
+7. **Go live.** Repeat steps 2 to 4 in live mode (a live restricted key and a live webhook destination) and replace the two secrets.
+
+Things to know:
+
+- **Keys are secrets.** Never put them in the code, a commit, or a chat. If one leaks, roll it in Stripe straight away.
+- **Sales tax is not collected.** Stripe can calculate tax, but only once you are registered where you owe it; ask an accountant before switching that on.
+- **Receipts.** Turn on customer emails for successful payments in Stripe (**Settings → Business → Customer emails**) so buyers get a receipt.
+- **Refunds and disputes** are handled in the Stripe dashboard.
+- **Orders hold personal details** (name, address, email, phone), so only owners can see them. Delete an order from the Orders page once you no longer need it.
+
 ## Running it on your computer
 
 Needs Node 20 or newer.
@@ -69,6 +91,7 @@ src/worker.js             routing, admin API, uploads
 src/render.js             the public pages
 src/content.js            default content, the list of editable fields, and input cleaning
 src/auth.js               accounts, passwords and sessions
+src/shop.js               selling: Stripe checkout, the signed webhook, and stored orders
 src/admin-page.js         the empty page the admin panel loads into
 public/assets/css/        site.css (public site) and admin.css (admin panel)
 public/assets/js/         site.js (copy deterrents, menu, slider, roster switch) and admin.js (admin panel)

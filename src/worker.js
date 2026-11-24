@@ -4,10 +4,13 @@
 //   /media/<id>            pictures uploaded in the admin panel
 //   /admin                 the admin panel
 //   /api/admin/*           what the admin panel talks to
+//   /api/checkout          starts a Stripe checkout for a product
+//   /api/stripe/webhook    Stripe's signed messages; this is what records an order
 import { renderRoute, renderNotFound } from './render.js';
 import { SCHEMA, cleanContent, cleanUrl, loadContent, saveContent, referencedMedia } from './content.js';
 import * as auth from './auth.js';
 import { adminShell } from './admin-page.js';
+import * as shop from './shop.js';
 
 const MAX_UPLOAD = 5 * 1024 * 1024;
 const BASE_HEADERS = {
@@ -44,7 +47,9 @@ async function route(request, env, ctx) {
   let path = url.pathname;
   if (path.length > 1 && path.endsWith('/')) path = path.replace(/\/+$/, '') || '/';
 
+  if (path === '/api/stripe/webhook') return shop.webhook(request, env);
   if (COPIERS.test(request.headers.get('user-agent') || '')) return new Response('Forbidden', { status: 403, headers: BASE_HEADERS });
+  if (path === '/api/checkout') return checkout(request, env, url);
   if (path.startsWith('/api/admin/')) return api(request, env, ctx, url, path.slice('/api/admin/'.length));
   if (path.startsWith('/media/')) return media(request, env, path.slice('/media/'.length));
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: BASE_HEADERS });
@@ -56,8 +61,21 @@ async function route(request, env, ctx) {
   if (legacy) return Response.redirect(new URL(legacy[1] === 'index' ? '/' : `/${legacy[1]}`, url).toString(), 301);
 
   const content = await loadContent(env);
+  content.shopOn = shop.stripeReady(env);   // decides whether product pages show a buy button
   const page = renderRoute(path, content);
   return page ? html(page) : html(renderNotFound(content), 404, 'no-store');
+}
+
+/* ----------------------------------------------------------------- checkout */
+async function checkout(request, env, url) {
+  if (request.method !== 'POST') return fail(405, 'Method not allowed.');
+  if (!env.DATA) return fail(503, 'The shop is not taking orders yet.');
+  const origin = request.headers.get('origin');
+  if (origin && origin !== url.origin) return fail(403, 'That request was blocked.');
+  const body = await readJson(request);
+  if (!body) return fail(400, 'Choose your options and try again.');
+  const result = await shop.createCheckout(env, await loadContent(env, { fresh: true }), url.origin, body, request.headers.get('cf-connecting-ip'));
+  return result.url ? json({ url: result.url }) : fail(result.status || 400, result.error);
 }
 
 /* -------------------------------------------------------------------- media */
@@ -232,7 +250,7 @@ async function api(request, env, ctx, url, path) {
   const users = session.users;
 
   if (path === 'content' && method === 'GET') {
-    return json({ content: await loadContent(env, { fresh: true }), schema: SCHEMA });
+    return json({ content: await loadContent(env, { fresh: true }), schema: SCHEMA, shop: shop.shopStatus(env) });
   }
 
   if (path === 'content' && method === 'PUT') {
@@ -272,6 +290,19 @@ async function api(request, env, ctx, url, path) {
     await auth.saveUsers(env, users);
     const started = await auth.startSession(env, me, secure); // other devices are signed out; this one stays in
     return json({ ok: true, csrf: started.csrf }, 200, { 'set-cookie': started.cookie });
+  }
+
+  /* ---- orders: owners only, because they hold customers' names and addresses ---- */
+  if (path === 'orders' || path.startsWith('orders/')) {
+    if (me.role !== 'owner') return fail(403, 'Only an owner can see orders.');
+    if (path === 'orders' && method === 'GET') return json({ ...(await shop.listOrders(env)), shop: shop.shopStatus(env) });
+    const key = decodeURIComponent(path.slice('orders/'.length));
+    if (method === 'PATCH') {
+      const body = await readJson(request);
+      const order = body ? await shop.updateOrder(env, key, body) : null;
+      return order ? json({ order }) : fail(404, 'That order no longer exists.');
+    }
+    if (method === 'DELETE') return (await shop.deleteOrder(env, key)) ? json({ ok: true }) : fail(404, 'That order no longer exists.');
   }
 
   /* ---- accounts: owners only ---- */

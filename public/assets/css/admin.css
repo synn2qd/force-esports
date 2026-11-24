@@ -203,4 +203,31 @@ button { cursor: pointer; background: none; border: 0; padding: 0; }
   .secret { flex-wrap: wrap; }
   .secret input { flex: 1 1 100%; }
 }
+/* ------------------------------------------------------------------ orders */
+.shop-state { margin-bottom: 18px; display: grid; gap: 8px; }
+.shop-state p, .shop-state li { color: var(--soft); }
+.shop-state ul { margin: 0; padding-left: 20px; font-variant-numeric: tabular-nums; }
+.shop-state.is-live { box-shadow: inset 0 0 0 1px rgba(127, 210, 143, .45); }
+.shop-state.is-test { box-shadow: inset 0 0 0 1px rgba(226, 179, 58, .45); }
+.shop-state.is-off { box-shadow: inset 0 0 0 1px rgba(240, 118, 106, .4); }
+.orders { display: grid; gap: 14px; }
+.orders .card + .card { margin-top: 0; }
+.orders-empty { color: var(--muted); padding: 8px 2px; }
+.order { display: grid; gap: 18px; }
+.order-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.order-id { display: grid; margin-right: auto; }
+.order-id b { font-size: 17px; }
+.order-id span { font-size: 13.5px; color: var(--muted); }
+.order-top .tag { margin-left: 0; }
+.order-total { font-size: 19px; font-variant-numeric: tabular-nums; }
+.tag-paid { color: var(--green); box-shadow: inset 0 0 0 1px rgba(127, 210, 143, .45); }
+.tag-awaiting_payment, .tag-test { color: var(--gold); box-shadow: inset 0 0 0 1px rgba(226, 179, 58, .4); }
+.tag-payment_failed { color: var(--red); box-shadow: inset 0 0 0 1px rgba(240, 118, 106, .4); }
+.order-body { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 24px; }
+.order-body .label { display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.order-body p { overflow-wrap: anywhere; }
+.order-body .dim { color: var(--muted); font-size: 14.5px; }
+.order-foot { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto; gap: 14px; align-items: end; padding-top: 16px; border-top: 1px solid var(--line); }
+@media (max-width: 760px) { .order-body, .order-foot { grid-template-columns: minmax(0, 1fr); } }
+
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }

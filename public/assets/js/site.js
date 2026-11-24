@@ -1,4 +1,4 @@
-/* Force Esports — small behaviours: copy deterrents, mobile menu, hero slider, roster switch. No dependencies. */
+/* Force Esports — small behaviours: copy deterrents, mobile menu, hero slider, roster switch, buy button. No dependencies. */
 (function () {
   'use strict';
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -71,6 +71,24 @@
     btn.addEventListener('click', function () { if (playing) pause(); else play(); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) clearTimeout(timer); else schedule(); });
     if (!reduce) play(); else pause();
+  }
+
+  /* ------------------------------------------------------------ buy button */
+  // The form asks this site to start a checkout, then hands the buyer to Stripe's payment page.
+  var buy = document.querySelector('form[data-buy]');
+  if (buy) {
+    var buyErr = buy.querySelector('.buy-error'), buyBtn = buy.querySelector('button[type="submit"]'), buyLabel = buyBtn.querySelector('span');
+    var buyFail = function (msg) { buyErr.textContent = msg; buyErr.hidden = false; buyBtn.disabled = false; buyLabel.textContent = 'Buy now'; };
+    buy.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var size = buy.querySelector('input[name="size"]:checked'), custom = buy.querySelector('input[name="custom"]');
+      if (buy.querySelector('input[name="size"]') && !size) return buyFail('Choose a size.');
+      buyErr.hidden = true; buyBtn.disabled = true; buyLabel.textContent = 'Opening checkout…';
+      fetch('/api/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product: buy.getAttribute('data-buy'), size: size ? size.value : '', qty: Number(buy.querySelector('select[name="qty"]').value), custom: custom ? custom.value : '' }) })
+        .then(function (res) { return res.json().catch(function () { return {}; }).then(function (d) { if (res.ok && d.url) window.location.assign(d.url); else buyFail(d.error || 'Checkout could not be started. Try again in a moment.'); }); })
+        .catch(function () { buyFail('Could not reach the shop. Check your connection and try again.'); });
+    });
+    window.addEventListener('pageshow', function () { buyBtn.disabled = false; buyLabel.textContent = 'Buy now'; });   // coming back from checkout with the Back button
   }
 
   /* -------------------------------------------------------- roster switch */
