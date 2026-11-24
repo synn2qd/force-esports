@@ -172,7 +172,7 @@ async function api(request, env, ctx, url, path) {
     const users = session ? session.users : await auth.loadUsers(env);
     return json({
       setupNeeded: Object.keys(users).length === 0,
-      setupEnabled: !!env.SETUP_KEY,
+      setupEnabled: !!String(env.SETUP_KEY || '').trim(),
       user: session ? auth.publicUser(session.user) : null,
       csrf: session ? session.csrf : null,
     });
@@ -181,11 +181,12 @@ async function api(request, env, ctx, url, path) {
   if (path === 'setup' && method === 'POST') {
     const users = await auth.loadUsers(env);
     if (Object.keys(users).length) return fail(409, 'Setup has already been completed.');
-    if (!env.SETUP_KEY) return fail(403, 'Setup is switched off until a SETUP_KEY is added in Cloudflare.');
+    if (!String(env.SETUP_KEY || '').trim()) return fail(403, 'Setup is switched off until a SETUP_KEY is added in Cloudflare.');
     const body = await readJson(request);
     if (!body) return fail(400, 'Fill in every field.');
     if (await auth.loginBlocked(env, request)) return fail(429, 'Too many attempts. Wait 15 minutes and try again.');
-    if (!auth.safeEqual(String(body.key || ''), env.SETUP_KEY)) {
+    // spaces or line breaks around the key (easy to pick up when pasting) are ignored on both sides
+    if (!auth.safeEqual(String(body.key || '').trim(), String(env.SETUP_KEY).trim())) {
       await auth.noteFailedLogin(env, request);
       return fail(403, 'That setup key is not right.');
     }

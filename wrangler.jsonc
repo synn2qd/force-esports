@@ -3,6 +3,8 @@
   "name": "force-esports",
   "main": "src/worker.js",
   "compatibility_date": "2026-11-01",
+  // Keep variables and secrets added in the Cloudflare dashboard (such as SETUP_KEY) when the site redeploys.
+  "keep_vars": true,
   // Everything under /assets is served as a plain file; every other URL runs the Worker.
   "assets": {
     "directory": "./public",
