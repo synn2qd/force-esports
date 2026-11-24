@@ -1,0 +1,4 @@
+# Files under /assets may only be loaded by pages on this site, so another site cannot point at our pictures, fonts, styles or scripts.
+/assets/*
+  Cross-Origin-Resource-Policy: same-origin
+  X-Content-Type-Options: nosniff

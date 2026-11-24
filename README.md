@@ -71,11 +71,27 @@ src/content.js            default content, the list of editable fields, and inpu
 src/auth.js               accounts, passwords and sessions
 src/admin-page.js         the empty page the admin panel loads into
 public/assets/css/        site.css (public site) and admin.css (admin panel)
-public/assets/js/         site.js (menu, slider, roster switch) and admin.js (admin panel)
+public/assets/js/         site.js (copy deterrents, menu, slider, roster switch) and admin.js (admin panel)
 public/assets/img/        logo, starting pictures and announcement graphics
 public/assets/fonts/      Anton and Geist (SIL Open Font License, licence texts included)
+public/_headers           stops other sites loading files from /assets
+scripts/build.mjs         copies public/ to dist/ and minifies the stylesheets and scripts
 ```
 
+`dist/` is what goes live. It is rebuilt by itself before every `npm run dev` and every deploy, so edit the files in `public/`, never the ones in `dist/`.
+
 The content the site starts with is in `src/content.js`. Once something has been saved in the admin panel, the saved version is used instead.
+
+## Copy protection
+
+No website can stop a determined person from saving what their browser shows them. What this one does is close the easy routes:
+
+- right-click, the view-source, save-page and developer-tools shortcuts, and dragging pictures out are switched off on the public pages (the admin panel is left alone)
+- the live stylesheets and scripts are minified, with comments removed
+- other websites cannot load this site's pictures, fonts, styles or scripts from `/assets`
+- programs made for downloading whole websites (HTTrack, wget and similar) are refused; search engines and link previews are not
+- the admin code, accounts and saved content run on Cloudflare and are never sent to visitors
+
+The source in this repository is the readable version of everything, so keep the repository **private** (GitHub → Settings → General → Danger Zone → Change repository visibility). Deploys keep working with a private repository.
 
 To add a new editable field, add it to `SCHEMA` in `src/content.js` and use it in `src/render.js`. The admin form and the input cleaning both come from that one list.

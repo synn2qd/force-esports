@@ -5,9 +5,12 @@
   "compatibility_date": "2026-11-01",
   // Keep variables and secrets added in the Cloudflare dashboard (such as SETUP_KEY) when the site redeploys.
   "keep_vars": true,
+  // The site's files are kept readable in public/. Before every deploy they are copied to dist/ with the
+  // stylesheets and scripts minified, and dist/ is what goes live.
+  "build": { "command": "node scripts/build.mjs", "watch_dir": "./public" },
   // Everything under /assets is served as a plain file; every other URL runs the Worker.
   "assets": {
-    "directory": "./public",
+    "directory": "./dist",
     "binding": "ASSETS",
     "run_worker_first": ["/*", "!/assets/*"]
   },

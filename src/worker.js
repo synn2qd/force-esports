@@ -15,7 +15,10 @@ const BASE_HEADERS = {
   'referrer-policy': 'strict-origin-when-cross-origin',
   'x-frame-options': 'DENY',
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+  'cross-origin-resource-policy': 'same-origin',   // other sites cannot embed our pages or uploaded pictures
 };
+// Programs made for downloading whole websites. Search engines and link previews (X, Discord) are not on this list.
+const COPIERS = /httrack|webcopier|web ?copy|webzip|website ?copier|sitesucker|sitesnagger|teleport ?pro|offline ?explorer|cyotek|wget|scrapy|libwww-perl/i;
 const CSP = "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 const html = (body, status = 200, cache = 'public, max-age=60') =>
@@ -41,6 +44,7 @@ async function route(request, env, ctx) {
   let path = url.pathname;
   if (path.length > 1 && path.endsWith('/')) path = path.replace(/\/+$/, '') || '/';
 
+  if (COPIERS.test(request.headers.get('user-agent') || '')) return new Response('Forbidden', { status: 403, headers: BASE_HEADERS });
   if (path.startsWith('/api/admin/')) return api(request, env, ctx, url, path.slice('/api/admin/'.length));
   if (path.startsWith('/media/')) return media(request, env, path.slice('/media/'.length));
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response('Method not allowed', { status: 405, headers: BASE_HEADERS });

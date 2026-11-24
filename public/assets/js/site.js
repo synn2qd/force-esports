@@ -1,9 +1,20 @@
-/* Force Esports — small behaviours: mobile menu, hero slider, roster switch. No dependencies. */
+/* Force Esports — small behaviours: copy deterrents, mobile menu, hero slider, roster switch. No dependencies. */
 (function () {
   'use strict';
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   document.querySelectorAll('[data-year]').forEach(function (el) { el.textContent = new Date().getFullYear(); });
+
+  /* ------------------------------------------------------ copy deterrents */
+  // Closes the casual routes to the page's source and pictures: the right-click menu, the view-source, save and
+  // developer-tools shortcuts, and dragging a picture out. It is a deterrent, not a lock: whatever a browser can
+  // show, the person using it can still save through the browser's own menus.
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  document.addEventListener('dragstart', function (e) { if (e.target && e.target.nodeName === 'IMG') e.preventDefault(); });
+  document.addEventListener('keydown', function (e) {
+    var c = e.code, mod = e.ctrlKey || e.metaKey, tool = c === 'KeyI' || c === 'KeyJ' || c === 'KeyC';
+    if (c === 'F12' || (mod && !e.shiftKey && !e.altKey && (c === 'KeyU' || c === 'KeyS')) || (mod && e.shiftKey && tool) || (e.metaKey && e.altKey && (tool || c === 'KeyU'))) e.preventDefault();
+  }, true);
 
   /* ---------------------------------------------------------- mobile menu */
   var toggle = document.querySelector('.nav-toggle');
