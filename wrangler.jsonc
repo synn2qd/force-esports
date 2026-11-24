@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "force-esports",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-11-01",
+  // Everything under /assets is served as a plain file; every other URL runs the Worker.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/*", "!/assets/*"]
+  },
+  // Site content, accounts, sessions and uploaded images. No id on purpose:
+  // Cloudflare creates the namespace on the first deploy and keeps it linked.
+  "kv_namespaces": [{ "binding": "DATA" }],
+  "observability": { "enabled": true }
+}

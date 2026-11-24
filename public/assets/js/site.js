@@ -7,11 +7,11 @@
 
   /* ---------------------------------------------------------- mobile menu */
   var toggle = document.querySelector('.nav-toggle');
-  var announce = document.querySelector('.announce');
-  function setAnnounceHeight() {
-    // the menu opens below the header; the gold bar above it scrolls away, so measure what is still visible
-    var h = announce ? Math.max(0, announce.getBoundingClientRect().bottom) : 0;
-    document.documentElement.style.setProperty('--announce-h', h + 'px');
+  var bar = document.querySelector('.topbar');
+  function measureBar() {
+    // the menu opens under the header; the gold bar above it scrolls away, so measure what is still showing
+    var h = bar ? Math.max(0, bar.getBoundingClientRect().bottom) : 0;
+    document.documentElement.style.setProperty('--bar-h', h + 'px');
   }
   function closeMenu() {
     document.body.classList.remove('nav-open');
@@ -19,26 +19,26 @@
   }
   if (toggle) {
     toggle.addEventListener('click', function () {
-      setAnnounceHeight();
+      measureBar();
       var open = document.body.classList.toggle('nav-open');
       toggle.setAttribute('aria-expanded', String(open));
       toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
     });
     document.querySelectorAll('.nav a').forEach(function (a) { a.addEventListener('click', closeMenu); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
-    window.addEventListener('resize', function () { if (window.innerWidth > 860) closeMenu(); });
+    window.addEventListener('resize', function () { if (window.innerWidth > 900) closeMenu(); });
   }
 
   /* ---------------------------------------------------------- hero slider */
   var hero = document.querySelector('.hero');
-  if (hero) {
+  var btn = hero && hero.querySelector('[data-hero="toggle"]');
+  if (hero && btn) {
     var slides = [].slice.call(hero.querySelectorAll('.slide'));
-    var bars = [].slice.call(hero.querySelectorAll('.hbars span'));
-    var btn = hero.querySelector('[data-hero="toggle"]');
+    var bars = [].slice.call(hero.querySelectorAll('.hero-bars span'));
     var DELAY = 6500, index = 0, timer = null, playing = false;
     hero.style.setProperty('--hero-ms', DELAY + 'ms');
 
-    function show(n) {
+    var show = function (n) {
       index = (n + slides.length) % slides.length;
       slides.forEach(function (s, i) {
         var on = i === index;
@@ -50,37 +50,23 @@
         b.classList.remove('is-active');
         if (i === index) { void b.offsetWidth; b.classList.add('is-active'); } // restart the progress animation
       });
-    }
-    function schedule() { clearTimeout(timer); if (playing) timer = setTimeout(function () { show(index + 1); schedule(); }, DELAY); }
-    function play() { playing = true; hero.classList.add('is-playing'); btn.setAttribute('aria-label', 'Pause slideshow'); show(index); schedule(); }
-    function pause() { playing = false; hero.classList.remove('is-playing'); btn.setAttribute('aria-label', 'Play slideshow'); clearTimeout(timer); }
+    };
+    var schedule = function () { clearTimeout(timer); if (playing) timer = setTimeout(function () { show(index + 1); schedule(); }, DELAY); };
+    var play = function () { playing = true; hero.classList.add('is-playing'); btn.setAttribute('aria-label', 'Pause slideshow'); show(index); schedule(); };
+    var pause = function () { playing = false; hero.classList.remove('is-playing'); btn.setAttribute('aria-label', 'Play slideshow'); clearTimeout(timer); };
 
     hero.querySelector('[data-hero="prev"]').addEventListener('click', function () { show(index - 1); schedule(); });
     hero.querySelector('[data-hero="next"]').addEventListener('click', function () { show(index + 1); schedule(); });
     btn.addEventListener('click', function () { if (playing) pause(); else play(); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) clearTimeout(timer); else schedule(); });
-    if (slides.length > 1 && !reduce) play(); else pause();
-  }
-
-  /* ------------------------------------------- accomplishments: X embeds */
-  // If the X script is blocked or slow, show our own picture of the post above the quoted text instead.
-  var embeds = [].slice.call(document.querySelectorAll('.acc-embed'));
-  if (embeds.length) {
-    setTimeout(function () {
-      embeds.forEach(function (el) { if (!el.querySelector('iframe')) el.classList.add('no-embed'); });
-    }, 4000);
+    if (!reduce) play(); else pause();
   }
 
   /* -------------------------------------------------------- roster switch */
   var tabs = [].slice.call(document.querySelectorAll('.switch [role="tab"]'));
   if (tabs.length) {
     var select = function (key, focus) {
-      var found = false;
-      tabs.forEach(function (t) {
-        var on = t.getAttribute('data-roster') === key;
-        if (on) found = true;
-      });
-      if (!found) key = tabs[0].getAttribute('data-roster');
+      if (!tabs.some(function (t) { return t.getAttribute('data-roster') === key; })) key = tabs[0].getAttribute('data-roster');
       tabs.forEach(function (t) {
         var on = t.getAttribute('data-roster') === key;
         t.setAttribute('aria-selected', String(on));
@@ -92,10 +78,7 @@
       return key;
     };
     tabs.forEach(function (t, i) {
-      t.addEventListener('click', function () {
-        var key = select(t.getAttribute('data-roster'));
-        history.replaceState(null, '', '#' + key);
-      });
+      t.addEventListener('click', function () { history.replaceState(null, '', '#' + select(t.getAttribute('data-roster'))); });
       t.addEventListener('keydown', function (e) {
         if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
         e.preventDefault();
@@ -103,7 +86,7 @@
         history.replaceState(null, '', '#' + select(next.getAttribute('data-roster'), true));
       });
     });
-    var fromHash = function () { select(location.hash.replace('#', '')); };
+    var fromHash = function () { select(decodeURIComponent(location.hash.replace('#', ''))); };
     window.addEventListener('hashchange', fromHash);
     fromHash();
   }
